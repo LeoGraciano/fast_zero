@@ -1,8 +1,61 @@
-from fastapi import FastAPI
+from http import HTTPStatus
+from uuid import UUID, uuid4
+
+from fastapi import FastAPI, HTTPException
+
+from fast_zero.schemas import Message, UserDB, UserList, UserPublicSchema, UserSchema
 
 app = FastAPI()
+database = []  # Placeholder para os dados de usuários
 
 
-@app.get("/")
+@app.get("/", response_model=Message)
 def read_root():
     return {"message": "Olá Mundo!!"}
+
+
+@app.post("/users/", status_code=HTTPStatus.CREATED, response_model=UserPublicSchema)
+def create_user(user: UserSchema):
+    user_db = UserDB(id=uuid4(), **user.model_dump())
+    database.append(user_db)  # Adiciona o novo usuário ao banco de dados
+    return user_db
+
+
+@app.get("/users/", response_model=UserList)
+def read_users():
+    # Implementar a lógica de leitura de todos os usuários
+    return {"users": database}
+
+
+@app.get("/users/{user_id}", response_model=UserPublicSchema)
+def read_user(user_id: UUID):
+    # Implementar a lógica de leitura de um usuário específico
+    for db_user in database:
+        if db_user.id == user_id:
+            return db_user
+
+    raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="NOT FOUND")
+
+
+@app.put("/users/{user_id}", response_model=UserPublicSchema)
+def update_user(user_id: UUID, user: UserSchema):
+    # Implementar a lógica de atualização do usuário
+    for db_user in database:
+        if db_user.id == user_id:
+            user_dump = user.model_dump()
+            for user_field in user_dump.keys():
+                setattr(db_user, user_field, user_dump[user_field])
+            return db_user
+
+    raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="NOT FOUND")
+
+
+@app.delete("/users/{user_id}", response_model=Message)
+def delete_user(user_id: UUID):
+    # Implementar a lógica de exclusão do usuário
+    for db_user in database:
+        if db_user.id == user_id:
+            database.remove(db_user)
+            return {"message": "User deleted successfully"}
+
+    raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail="NOT FOUND")
