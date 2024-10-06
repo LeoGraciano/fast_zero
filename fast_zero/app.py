@@ -1,9 +1,12 @@
 from http import HTTPStatus
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 
-from fast_zero.schemas import Message, UserDB, UserList, UserPublicSchema, UserSchema
+from fast_zero.helpers.database import get_session
+from fast_zero.helpers.validations.user import email_existis
+from fast_zero.models import User
+from fast_zero.schemas import Message, UserList, UserPublicSchema, UserSchema
 
 app = FastAPI()
 database = []  # Placeholder para os dados de usuários
@@ -15,15 +18,22 @@ def read_root():
 
 
 @app.post("/users/", status_code=HTTPStatus.CREATED, response_model=UserPublicSchema)
-def create_user(user: UserSchema):
-    user_db = UserDB(id=uuid4(), **user.model_dump())
-    database.append(user_db)  # Adiciona o novo usuário ao banco de dados
-    return user_db
+def create_user(user: UserSchema, session=Depends(get_session)):
+    if email_existis(user.email, session):
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST, detail="EMAIL ALREADY EXISTS"
+        )
+
+    db_user = User(**user.model_dump())
+    session.add(db_user)
+    session.commit()
+    session.refresh(db_user)
+
+    return db_user
 
 
-@app.get("/users/", response_model=UserList)
+@app.get(path="/users/", response_model=UserList)
 def read_users():
-    # Implementar a lógica de leitura de todos os usuários
     return {"users": database}
 
 
